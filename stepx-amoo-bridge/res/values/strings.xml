@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">stepx-amoo-bridge</string>
+    <string name="ui_desc">允许 StepBridge 读取屏幕内容并模拟点按、滑动，用于自动化操作。</string>
+</resources>
