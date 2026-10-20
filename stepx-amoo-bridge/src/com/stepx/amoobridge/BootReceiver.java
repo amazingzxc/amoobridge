@@ -17,5 +17,7 @@ public class BootReceiver extends BroadcastReceiver {
             }
         } catch (Throwable ignored) {
         }
+        WatchdogReceiver.schedule(ctx);
+        BridgeJobService.schedule(ctx);
     }
 }

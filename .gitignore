@@ -1,0 +1,11 @@
+# Gradle and Android build output
+.gradle/
+**/build/
+
+# Local Android SDK/JDK/Gradle tools downloaded for local builds
+tools/
+
+# Local signing keys and machine-specific configuration
+*.jks
+*.keystore
+local.properties

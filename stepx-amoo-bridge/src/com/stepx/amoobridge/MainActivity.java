@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
@@ -109,13 +110,20 @@ public class MainActivity extends Activity {
     private void openBattery() {
         try {
             if (Build.VERSION.SDK_INT >= 23) {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                if (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    openDetails();
+                    return;
+                }
                 Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 i.setData(Uri.parse("package:" + getPackageName()));
                 startActivity(i);
                 return;
             }
         } catch (Throwable ignored) {}
-        openDetails();
+        try {
+            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        } catch (Throwable ignored) { openDetails(); }
     }
 
     private void openWriteSettings() {
@@ -147,6 +155,13 @@ public class MainActivity extends Activity {
     private void refresh() {
         boolean allFiles = Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager();
         boolean writeSet = Build.VERSION.SDK_INT < 23 || Settings.System.canWrite(this);
+        boolean batteryOk = true;
+        if (Build.VERSION.SDK_INT >= 23) {
+            try {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                batteryOk = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+            } catch (Throwable ignored) {}
+        }
         java.io.File dir = new java.io.File(BridgeService.BRIDGE_DIR);
         java.io.File st = new java.io.File(dir, "status.json");
         String token = HttpBridge.ensureToken();
@@ -155,6 +170,7 @@ public class MainActivity extends Activity {
         sb.append("文件访问：").append(allFiles ? "✓" : "✗ 必须授予").append('\n');
         sb.append("无障碍：").append("（lite 版不含）").append('\n');
         sb.append("修改系统设置：").append(writeSet ? "✓" : "✗（调亮度需要）").append('\n');
+        sb.append("电池优化：").append(batteryOk ? "✓ 已豁免" : "✗ 建议允许后台常驻").append('\n');
         sb.append("HTTP 端口：").append(HttpBridge.port() > 0 ? String.valueOf(HttpBridge.port()) : "未启动").append('\n');
         sb.append("令牌：").append(shown).append("（完整值在 /sdcard/bridge-amoobridge/token.txt）\n");
         sb.append("信箱目录：").append(BridgeService.BRIDGE_DIR)

@@ -1,0 +1,32 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "com.stepx.amoobridge"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.stepx.amoobridge"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile "../stepx-amoo-bridge/AndroidManifest.xml"
+            java.srcDirs = ["../stepx-amoo-bridge/src"]
+            res.srcDirs = ["../stepx-amoo-bridge/res"]
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}

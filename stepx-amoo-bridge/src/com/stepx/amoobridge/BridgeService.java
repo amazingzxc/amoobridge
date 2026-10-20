@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -22,12 +23,19 @@ public class BridgeService extends Service {
     public static final String BRIDGE_DIR = "/sdcard/bridge-amoobridge";
     private volatile boolean running = false;
     private Thread worker;
+    private PowerManager.WakeLock wakeLock;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Tools.init(this);
         startForeground(1, buildNotification("桥已启动", "HTTP 与信箱就绪"));
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getPackageName() + ":bridge");
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire();
+        } catch (Throwable ignored) {}
         WatchdogReceiver.schedule(this);
         BridgeJobService.schedule(this);
         HttpBridge.start(HttpBridge.DEFAULT_PORT);
@@ -48,7 +56,17 @@ public class BridgeService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        } catch (Throwable ignored) {}
+        WatchdogReceiver.schedule(this);
         super.onDestroy();
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        WatchdogReceiver.schedule(this);
+        super.onTaskRemoved(rootIntent);
     }
 
     @Override

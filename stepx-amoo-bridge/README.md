@@ -71,12 +71,71 @@ bridge call <工具> '{"k":"v"}'   # 任意工具
 - 没有 root
 - 平台不允许助手打开侧载应用，所以服务死了只能用户手动点开唤醒
 
-## 重新构建
+## 从源码构建 APK
 
-```bash
-bash /root/apkbuild.sh /sdcard/bridgeapp stepbridge
-cp /root/build-stepbridge/stepbridge.apk /sdcard/Download/
+仓库已经包含标准 Android Gradle 配置，源码仍放在 `stepx-amoo-bridge/` 目录中。构建需要：
+
+- Android Studio（建议最新版稳定版）
+- Android SDK Platform 34 和 Android SDK Build-Tools
+- JDK 17（Android Gradle Plugin 8.2.2 要求）
+
+### 方式一：Android Studio
+
+1. 用 Android Studio 打开仓库根目录（包含 `settings.gradle` 的 `amoobridge/`）。
+2. 等待 Gradle 同步完成；如果提示缺少 SDK 34，按提示安装。
+3. 选择 `Build > Make Project`，确认源码可以编译。
+4. 选择 `Build > Build Bundle(s) / APK(s) > Build APK(s)`。
+5. Debug APK 输出在：
+
+   `app/build/outputs/apk/debug/app-debug.apk`
+
+### 方式二：命令行
+
+在仓库根目录执行。首次使用时需要本机已安装 Gradle 8.2 或更高版本：
+
+```powershell
+gradle wrapper --gradle-version 8.2
+.\gradlew.bat assembleDebug
 ```
+
+生成的 Debug APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。连接已开启 USB 调试的设备后，可以直接安装：
+
+```powershell
+.\gradlew.bat installDebug
+```
+
+Linux/macOS 使用 `./gradlew` 替换上面的 `.\gradlew.bat`。
+
+### 构建 Release APK
+
+Release 构建默认关闭代码压缩，但发布前仍应使用自己的签名密钥。先创建一次密钥库（密钥库文件不要提交到 Git）：
+
+```powershell
+keytool -genkeypair -v -keystore stepx-release.jks -alias stepx \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+然后在 Android Studio 的 `Build > Generate Signed Bundle / APK` 中选择 `APK`、`release` 和该密钥库，或按 Android Studio 的签名向导完成构建。未签名的 Release APK 可用下面命令生成，位置为 `app/build/outputs/apk/release/app-release-unsigned.apk`：
+
+```powershell
+.\gradlew.bat assembleRelease
+```
+
+### 安装后首次配置
+
+安装 APK 后打开应用，依次授予“所有文件访问”、后台运行（电池优化白名单）和通知权限；需要调节亮度时再授予“修改系统设置”。应用启动后会自动启动桥服务。
+
+### 防止后台被冻结
+
+应用使用前台服务、`START_STICKY`、每分钟 watchdog 闹钟和部分唤醒锁来维持处理线程。首次启动时仍需要在系统设置中完成下面配置，否则部分厂商系统会冻结或清理进程：
+
+1. 点击应用内的“允许后台常驻（电池优化）”，把本应用设为“不优化”或“无限制”。
+2. 在系统的“应用启动/自启动”设置中允许本应用自启动。
+3. 在“后台活动/电池”设置中选择“无限制”，并允许后台运行。
+4. 不要从系统的最近任务界面清理本应用；如果系统支持应用锁定，请将本应用锁定。
+5. 保留通知权限，让前台服务通知可以正常显示。
+
+不同厂商的入口名称可能是“自启动管理”“后台弹出界面”“省电策略”或“应用休眠”。应用被厂商策略强制停止时，Android 不允许普通应用绕过系统限制；完成上述设置后，开机广播和 watchdog 会自动尝试恢复服务。
 
 ## 版本记录
 
