@@ -130,6 +130,11 @@ adb logcat -d | grep -E 'StepOSFreeze.*com.stepx.amoobridge' | tail
 预期：60 秒后仍返回 200，日志里没有 `FREEZE ... freezeValue=1`。
 **不要在没有无障碍的情况下宣称后台可用。**
 
+**息屏 / Doze 的限制（已实测）：** 关屏后约 30 秒，`/ping` 会超时，
+`status.json` 停止更新；亮屏后恢复 200。
+电池优化白名单和无障碍绑定都不能阻止 StepOS 在息屏时冻结 uid。
+本地 agent 使用时保持亮屏；息屏/远程场景需要额外的唤醒通道（当前未实现）。
+
 ## 6. UI 自动化工具
 
 通过 `POST http://127.0.0.1:8896/call` 或文件信箱调用：
@@ -204,4 +209,5 @@ CommonInterception ... Intercept = 9 | Reason = Caller process is background
 2. **后台启动 Activity 被拦截**：用 `ui_click` 点桌面图标，不要依赖 `start_app`。
 3. **无障碍必须开启**：否则 UI 工具不可用，且后台会被 StepOS 冻结。
 4. **重装后权限会掉**：先补 `MANAGE_EXTERNAL_STORAGE`。
-5. **屏幕锁定/息屏** 下的行为未验证，涉及锁屏任务时先实测。
+5. **息屏 / Doze 会冻结**：关屏约 30 秒后 8896 超时，亮屏恢复；
+   电池优化白名单 + 无障碍也无效。本地 agent 请保持亮屏。

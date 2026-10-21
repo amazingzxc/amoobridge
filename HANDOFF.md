@@ -43,6 +43,17 @@ BridgeService（前台服务）
 
 **关键前提：无障碍服务必须是 connected 状态。**
 
+## 重启 / 息屏测试（2026-10-21）
+
+- **重启**：应用自动启动（pid 7202），无障碍自动绑定，
+  无需手动打开应用，8896 直接返回 200；`status.json` 正常。
+- **息屏 / Doze**：关屏约 30 秒后 `/ping` 超时，`status.json` 停止更新；
+  亮屏后立即恢复 200。
+- 已加入电池优化白名单（`dumpsys deviceidle whitelist` 可见），
+  但仍无法阻止 StepOS 在息屏时冻结。
+- 结论：本地 agent 使用时保持亮屏；息屏/远程访问需要额外唤醒通道，
+  当前纯原生版本不提供。
+
 ## UI 工具（已验证）
 
 通过 `POST /call` 或文件信箱调用：
@@ -114,6 +125,7 @@ adb shell settings put secure accessibility_enabled 1
 - 纯原生 APK 已安装（`lastUpdateTime=2026-10-21 17:34:28`）；
 - 无障碍服务已开启并 connected；
 - 原生应用运行中，占用 8896；
+- 已在电池优化白名单中（`com.stepx.amoobridge`）；
 - GBox 已停止；GBox 里的旧克隆仍在，但不再使用；
 - 旧的 FCM token / `fcm_status.json` 可能还留在桥目录，属于历史文件，无影响，可删。
 
