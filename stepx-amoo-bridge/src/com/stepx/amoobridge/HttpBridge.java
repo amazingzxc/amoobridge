@@ -24,6 +24,8 @@ public class HttpBridge {
 
     public static int port() { return port; }
 
+    public static boolean isRunning() { return running && server != null && port > 0; }
+
     public static String tokenFile() { return BridgeService.BRIDGE_DIR + "/token.txt"; }
 
     public static synchronized String ensureToken() {

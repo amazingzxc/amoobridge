@@ -19,7 +19,7 @@ App 里四个按钮一键直达对应设置页。打开 App 会自动启动服�
 ## 通道一：本机 HTTP（推荐）
 
 ```
-POST http://127.0.0.1:8898/call
+POST http://127.0.0.1:8896/call
 Header: Authorization: Bearer <token>
 Body:   {"tool":"exec","args":{"cmd":"ls /sdcard"}}
 ```
@@ -127,7 +127,7 @@ keytool -genkeypair -v -keystore stepx-release.jks -alias stepx \
 
 ### 防止后台被冻结
 
-应用使用前台服务、`START_STICKY`、每分钟 watchdog 闹钟和部分唤醒锁来维持处理线程。首次启动时仍需要在系统设置中完成下面配置，否则部分厂商系统会冻结或清理进程：
+应用使用带 `dataSync` 类型的前台服务、`START_STICKY`、每分钟 watchdog 闹钟和部分唤醒锁来维持处理线程。watchdog 优先使用允许待机唤醒的精确单次闹钟，每次触发后重新安排下一次；系统未授予精确闹钟权限时会自动降级为非精确闹钟。首次启动时仍需要在系统设置中完成下面配置，否则部分厂商系统会冻结或清理进程：
 
 1. 点击应用内的“允许后台常驻（电池优化）”，把本应用设为“不优化”或“无限制”。
 2. 在系统的“应用启动/自启动”设置中允许本应用自启动。
@@ -141,7 +141,7 @@ keytool -genkeypair -v -keystore stepx-release.jks -alias stepx \
 
 | 版本 | 变更 |
 |---|---|
-| 2.0 | 加本机 HTTP 通道（8898）、无障碍服务、工具扩到 31 个 |
+| 2.0 | 加本机 HTTP 通道（8896）、无障碍服务、工具扩到 31 个 |
 | 2.1 | 修 `list_apps`：改走 launcher 查询，绕开包可见性限制 |
 | 2.2 | 新增 `ui_longpress`（长按，默认 700ms）、`shot_b64`（截图缩放后 base64 回传） |
 

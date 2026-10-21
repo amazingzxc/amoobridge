@@ -32,8 +32,19 @@ public class WatchdogReceiver extends BroadcastReceiver {
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
             if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
             PendingIntent pi = PendingIntent.getBroadcast(ctx, 1001, i, flags);
+            long at = SystemClock.elapsedRealtime() + INTERVAL_MS;
+            if (Build.VERSION.SDK_INT >= 23) {
+                try {
+                    if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()) {
+                        am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
+                        return;
+                    }
+                } catch (Throwable ignored) {
+                    // Fall through to the compatible inexact alarm below.
+                }
+            }
             am.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    SystemClock.elapsedRealtime() + INTERVAL_MS, INTERVAL_MS, pi);
+                    at, INTERVAL_MS, pi);
         } catch (Throwable ignored) {
         }
     }

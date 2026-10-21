@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.content.pm.ServiceInfo;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -29,7 +30,7 @@ public class BridgeService extends Service {
     public void onCreate() {
         super.onCreate();
         Tools.init(this);
-        startForeground(1, buildNotification("桥已启动", "HTTP 与信箱就绪"));
+        promoteToForeground();
         try {
             PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getPackageName() + ":bridge");
@@ -43,6 +44,10 @@ public class BridgeService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // onStartCommand can be called after a vendor restart without a new onCreate.
+        // Re-assert the foreground state and repair a listener that died independently.
+        promoteToForeground();
+        if (!HttpBridge.isRunning()) HttpBridge.start(HttpBridge.DEFAULT_PORT);
         if (!running) {
             running = true;
             worker = new Thread(new Runnable() {
@@ -56,6 +61,7 @@ public class BridgeService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        HttpBridge.stop();
         try {
             if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         } catch (Throwable ignored) {}
@@ -71,6 +77,20 @@ public class BridgeService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
+
+    private void promoteToForeground() {
+        try {
+            Notification notification = buildNotification("桥已启动", "HTTP 与信箱就绪");
+            if (Build.VERSION.SDK_INT >= 29) {
+                startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            } else {
+                startForeground(1, notification);
+            }
+        } catch (Throwable ignored) {
+            // Keep the service alive on older/vendor frameworks that reject the typed call.
+            try { startForeground(1, buildNotification("桥已启动", "HTTP 与信箱就绪")); } catch (Throwable ignoredAgain) {}
+        }
+    }
 
     private Notification buildNotification(String title, String text) {
         String ch = "bridge";
