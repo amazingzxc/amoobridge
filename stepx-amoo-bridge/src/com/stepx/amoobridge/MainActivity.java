@@ -73,6 +73,7 @@ public class MainActivity extends Activity {
         setContentView(sc);
 
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+        BridgeFcm.start(this);
         refresh();
         startBridge();
     }
@@ -177,6 +178,10 @@ public class MainActivity extends Activity {
           .append(allFiles && dir.canWrite() ? "（可写）" : "（不可写）").append('\n');
         if (st.exists()) sb.append("心跳：").append((System.currentTimeMillis() - st.lastModified()) / 1000).append(" 秒前\n");
         else sb.append("心跳：无（服务未启动）\n");
+        java.io.File fcmToken = new java.io.File(dir, "fcm_token.txt");
+        java.io.File fcmStatus = new java.io.File(dir, "fcm_status.json");
+        sb.append("FCM：").append(fcmToken.exists() && fcmToken.length() > 0 ? "✓ 已有 token" : "✗ 暂无 token")
+          .append(fcmStatus.exists() ? "（fcm_status.json 可查原因）" : "").append('\n');
         status.setText(sb.toString());
     }
 

@@ -41,7 +41,7 @@ public class Tools {
     public static final String[] NAMES = {
         "ping", "info", "exec", "ls", "read", "write", "mkdir", "rm", "mv", "cp", "stat",
         "start_app", "open_url", "share_text", "clipboard", "toast", "notify", "list_apps",
-         "battery", "volume", "brightness", "vibrate"
+         "battery", "volume", "brightness", "vibrate", "http"
     };
 
     public static JSONObject dispatch(String tool, JSONObject a) {
@@ -58,6 +58,9 @@ public class Tools {
                  .put("pid", android.os.Process.myPid())
                  .put("ui", false);
                 return r;
+            }
+            if (tool.equals("http")) {
+                return http(a);
             }
             if (tool.equals("info")) {
                 r.put("ok", true).put("model", Build.MODEL).put("brand", Build.BRAND)
@@ -384,5 +387,46 @@ public class Tools {
         in.close();
         out.close();
         return true;
+    }
+
+    /** Minimal HTTPS probe used to diagnose GBox/network problems from inside the app. */
+    private static JSONObject http(JSONObject a) {
+        JSONObject r = new JSONObject();
+        String url = a.optString("url", "");
+        if (url.length() == 0) {
+            try { r.put("ok", false).put("error", "empty url"); } catch (Throwable ignored) {}
+            return r;
+        }
+        java.net.HttpURLConnection c = null;
+        try {
+            c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            c.setConnectTimeout(Math.max(1000, Math.min(a.optInt("timeout", 10), 30)) * 1000);
+            c.setReadTimeout(Math.max(1000, Math.min(a.optInt("timeout", 10), 30)) * 1000);
+            c.setRequestMethod(a.optString("method", "GET"));
+            c.setRequestProperty("User-Agent", "stepx-bridge");
+            String extra = a.optString("headers", "");
+            if (extra.length() > 0) {
+                for (String line : extra.split("\n")) {
+                    int i = line.indexOf(':');
+                    if (i > 0) c.setRequestProperty(line.substring(0, i).trim(), line.substring(i + 1).trim());
+                }
+            }
+            int code = c.getResponseCode();
+            java.io.InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+            StringBuilder sb = new StringBuilder();
+            if (in != null) {
+                byte[] b = new byte[2048];
+                int n;
+                while ((n = in.read(b)) > 0 && sb.length() < 4096) sb.append(new String(b, 0, n, "UTF-8"));
+                in.close();
+            }
+            r.put("ok", true).put("code", code).put("url", url).put("body", sb.toString());
+        } catch (Throwable t) {
+            try { r.put("ok", false).put("url", url)
+                    .put("error", t.getClass().getSimpleName() + ": " + t.getMessage()); } catch (Throwable ignored) {}
+        } finally {
+            if (c != null) c.disconnect();
+        }
+        return r;
     }
 }

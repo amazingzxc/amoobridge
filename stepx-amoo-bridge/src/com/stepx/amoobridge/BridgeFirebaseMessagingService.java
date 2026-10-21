@@ -7,9 +7,6 @@ import android.util.Log;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
-import java.io.File;
-import java.io.FileOutputStream;
-
 /**
  * Remote wake-up entry point. The server must send a high-priority data message
  * with data.type=bridge_wake. FCM configuration is optional at build time but
@@ -33,15 +30,8 @@ public class BridgeFirebaseMessagingService extends FirebaseMessagingService {
 
     @Override
     public void onNewToken(String token) {
-        try {
-            File f = new File(BridgeService.BRIDGE_DIR, "fcm_token.txt");
-            File parent = f.getParentFile();
-            if (parent != null) parent.mkdirs();
-            FileOutputStream out = new FileOutputStream(f, false);
-            out.write(token.getBytes("UTF-8"));
-            out.close();
-        } catch (Throwable t) {
-            Log.w(TAG, "Unable to persist FCM token", t);
-        }
+        BridgeFcm.persistToken(token);
+        BridgeFcm.writeStatus("ok", null, token);
+        Log.i(TAG, "New FCM token: " + BridgeFcm.mask(token));
     }
 }

@@ -44,6 +44,7 @@ public class BridgeService extends Service {
         super.onCreate();
         destroyed = false;
         Tools.init(this);
+        BridgeFcm.start(this);
         promoteToForeground();
         try {
             PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);

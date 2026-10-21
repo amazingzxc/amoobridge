@@ -9,3 +9,8 @@ tools/
 *.jks
 *.keystore
 local.properties
+
+# Local OS/editor noise and experiment scratch
+.DS_Store
+**/.DS_Store
+work/
