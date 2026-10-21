@@ -42,6 +42,9 @@ public class MainActivity extends Activity {
         root.addView(btn("① 授予「所有文件访问」", new View.OnClickListener() {
             public void onClick(View v) { openAllFiles(); }
         }));
+        root.addView(btn("② 开启无障碍（UI 自动化）", new View.OnClickListener() {
+            public void onClick(View v) { openAccessibility(); }
+        }));
         root.addView(btn("③ 允许后台常驻（电池优化）", new View.OnClickListener() {
             public void onClick(View v) { openBattery(); }
         }));
@@ -65,7 +68,7 @@ public class MainActivity extends Activity {
         TextView help = new TextView(this);
         help.setTextSize(12);
         help.setTextColor(0xFF8B93A7);
-        help.setText("\n两条通道：\n1) 文件信箱 /sdcard/bridge-amoobridge  →  cmd_<id>.json 进，result_<id>.json 出\n2) 本机 HTTP  http://127.0.0.1:8896/call  →  {\\\"tool\\\":\\\"exec\\\",\\\"args\\\":{...}}\n   令牌在 /sdcard/bridge-amoobridge/token.txt，请求带 Authorization: Bearer <令牌>\n\n工具：exec ls read write mkdir rm mv cp stat start_app open_url share_text\nclipboard toast notify list_apps \nbattery volume brightness vibrate info ping");
+        help.setText("\n两条通道：\n1) 文件信箱 /sdcard/bridge-amoobridge  →  cmd_<id>.json 进，result_<id>.json 出\n2) 本机 HTTP  http://127.0.0.1:8896/call  →  {\\\"tool\\\":\\\"exec\\\",\\\"args\\\":{...}}\n   令牌在 /sdcard/bridge-amoobridge/token.txt，请求带 Authorization: Bearer <令牌>\n\n工具：exec ls read write mkdir rm mv cp stat start_app open_url share_text\nclipboard toast notify list_apps battery volume brightness vibrate http\nui_tap ui_swipe ui_click ui_dump shot ui_back ui_home ui_recents\n\nUI 工具需要开启无障碍服务（按钮②）");
         root.addView(help);
 
         ScrollView sc = new ScrollView(this);
@@ -169,7 +172,7 @@ public class MainActivity extends Activity {
         String shown = token.length() > 8 ? token.substring(0, 4) + "…" + token.substring(token.length() - 4) : token;
         StringBuilder sb = new StringBuilder();
         sb.append("文件访问：").append(allFiles ? "✓" : "✗ 必须授予").append('\n');
-        sb.append("无障碍：").append("（lite 版不含）").append('\n');
+        sb.append("无障碍：").append(BridgeAccessibilityService.isConnected() ? "✓ 已连接（UI 可用）" : "✗ 未开启（UI 工具不可用）").append('\n');
         sb.append("修改系统设置：").append(writeSet ? "✓" : "✗（调亮度需要）").append('\n');
         sb.append("电池优化：").append(batteryOk ? "✓ 已豁免" : "✗ 建议允许后台常驻").append('\n');
         sb.append("HTTP 端口：").append(HttpBridge.port() > 0 ? String.valueOf(HttpBridge.port()) : "未启动").append('\n');

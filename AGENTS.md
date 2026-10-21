@@ -20,18 +20,20 @@
 
 这台机器上存在两套运行时，**不能同时运行**（它们共用 8896 和桥目录）：
 
-1. **原生应用** `com.stepx.amoobridge`
+1. **原生应用** `com.stepx.amoobridge`（推荐，当前主运行时）
    - 用主构建（24.1.2）安装；
-   - 能跑 HTTP、文件信箱；
-   - **收不到 FCM**：原生 GMS 是侧载用户应用，被 Android 16 的后台服务限制挡住；
-   - 目前已被 **停用**，避免开机自动启动占用 8896。
-2. **GBox 克隆**（同一个包名，运行在 GBox 容器里，uid 10193）
-   - 用 `firebase-messaging:19.0.0` 构建克隆；
-   - **能收 FCM**，是远程唤醒的实际运行时；
-   - 依赖 GBox 进程和手机 VPN。
+   - 开启无障碍后，`BridgeAccessibilityService` 被系统长期绑定，
+     **实测退后台 3 分钟不冻结，8896 一直可用**；
+   - 提供 `ui_tap` / `ui_swipe` / `ui_click` / `ui_dump` / `shot` / `ui_back` 等 UI 工具；
+   - 收不到 FCM（原生 GMS 被 Android 16 限制），但本地 agent 不需要 FCM。
+2. **GBox 克隆**（可选，仅远程 FCM 唤醒时使用）
+   - 同一个包名，运行在 GBox 容器里（uid 10193）；
+   - 用 `firebase-messaging:19.0.0` 构建，能收 FCM；
+   - 依赖 GBox + 手机 VPN；退后台会被 StepOS 冻结
+     （已实测 recents 锁也无效），只能靠 FCM 反复唤醒。
 
-**不要删除 GBox 里的克隆。** 若必须重新克隆，先确认 `/sdcard/Download/amoobridge-fcm19.apk`
-存在，并先把它装到手机上，否则新克隆会使用 24.1.2，FCM 会回到 `SERVICE_NOT_AVAILABLE`。
+**不要删除 GBox 里的克隆和 `/sdcard/Download/amoobridge-fcm19.apk`。**
+远程 FCM 还需要它；本地 agent 优先用原生 + 无障碍。
 
 ## 1. 构建
 
@@ -97,19 +99,19 @@ adb shell appops set com.stepx.amoobridge MANAGE_EXTERNAL_STORAGE allow
 
 或让用户点应用里的「① 授予所有文件访问」。
 
-### 原生应用当前是停用状态
+### 原生应用当前是启用状态（主运行时）
 
-为避免开机自动启动占用 8896：
+原生 + 无障碍是本地 agent 的主入口，不要停用。只有在需要测试 GBox FCM
+时才临时停用，让克隆独占 8896：
 
 ```bash
-# 停用（默认状态）
+# 测试 GBox/FCM 前
 adb shell pm disable-user --user 0 com.stepx.amoobridge
 
-# 需要跑原生冒烟/重新克隆时恢复
+# 测完切回本地 agent
 adb shell pm enable com.stepx.amoobridge
+adb shell am start -n com.stepx.amoobridge/.MainActivity
 ```
-
-停用不影响 GBox 克隆；克隆有自己的 APK 副本，可独立冷启动。
 
 ## 3. 原生应用冒烟测试
 
@@ -143,26 +145,42 @@ adb logcat -d -b crash | grep -E 'com.stepx.amoobridge|FATAL EXCEPTION'
 - crash 缓冲里**没有** `com.stepx.amoobridge` 的 FATAL
   （`com.google.android.gms` 的 FATAL 是这台机器的已知现象，可忽略）。
 
-测试完成后如果继续使用 GBox：
+无障碍是本机保活和 UI 自动化的关键。安装后执行：
 
 ```bash
-adb shell pm disable-user --user 0 com.stepx.amoobridge
+adb shell settings put secure enabled_accessibility_services \
+  com.stepx.amoobridge/com.stepx.amoobridge.BridgeAccessibilityService
+adb shell settings put secure accessibility_enabled 1
+adb shell dumpsys accessibility | grep -i stepx
 ```
 
-### 后台行为
-
-StepOS 会在应用退后台约 3–5 秒后冻结整个 uid。前台服务、电池白名单、
-AlarmManager、JobScheduler 都挡不住。涉及后台保活的改动必须明确记录：
+验证保活：
 
 ```bash
 adb shell input keyevent KEYCODE_HOME
-sleep 20
+sleep 60
 curl -s -m 5 -H "Authorization: Bearer $TOKEN" http://127.0.0.1:18896/ping
-adb logcat -d | grep -E 'StepOSFreeze.*com.stepx.amoobridge' | tail
 ```
 
-预期：后台 20 秒后请求超时，日志出现 `StepOSFreeze ... freezeValue=1`。
-不要把“后台一直可用”当作验收标准；当前只有前台和 FCM 唤醒窗口可用。
+预期 60 秒后仍返回 200；实测原生 + 无障碍 3 分钟不被冻结。
+**不需要再用 `pm disable-user`**；原生是当前主运行时。
+
+### 后台行为（原生 + 无障碍）
+
+开启无障碍后，系统会长期绑定 `BridgeAccessibilityService`，StepOS 不再冻结原生 uid。
+实测退后台 3 分钟，8896 仍可用：
+
+```bash
+adb shell input keyevent KEYCODE_HOME
+sleep 60
+curl -s -m 5 -H "Authorization: Bearer $TOKEN" http://127.0.0.1:18896/ping
+adb logcat -d | grep -E 'StepOSFreeze.*10202' | tail
+```
+
+预期：60 秒后仍返回 200，日志里没有 `FREEZE ... freezeValue=1`。
+
+注意：**GBox 克隆（uid 10193）不享受这个豁免**，仍会被冻结；
+GBox 的保活只能靠 FCM 反复唤醒。
 
 ## 4. GBox / FCM 验证
 
@@ -300,14 +318,18 @@ curl -s -m 20 -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/js
 2. **原生 GMS 收不了 FCM**：Android 16 后台服务限制，侧载 GMS 无解。
 3. **GBox 克隆是唯一 FCM 运行时**：用 19.0.0 构建，不要被 24.1.2 覆盖。
 4. **手机 VPN 必须开**：否则 GCM 注册、Firebase Installations、MCS 全部失败。
-5. **StepOS 后台冻结**：3–5 秒后冻结 uid，只有前台/唤醒窗口可靠。
-6. **原生与克隆不能同时跑**：共用 8896，原生已停用。
+5. **StepOS 后台冻结分两种**：
+   - GBox 克隆（uid 10193）：3–5 秒后冻结，recents 锁也无效，只能 FCM 唤醒；
+   - 原生 + 无障碍（uid 10202）：无障碍服务被系统绑定，实测退后台 3 分钟不冻结。
+6. **原生与克隆不能同时跑**：共用 8896；本地 agent 用原生，远程 FCM 才切 GBox。
 7. **重装后权限会掉**：先补 `MANAGE_EXTERNAL_STORAGE`，否则 401。
-8. **后台不能启动 Activity**：`start_app` / `open_url` 在桥处于后台时会被 StepOS 拦截：
+8. **后台不能直接启动 Activity**：`start_app` / `open_url` 在桥处于后台时会被 StepOS 拦截：
    `CommonInterception ... Intercept = 9 | Reason = Caller process is background`。
-   前台服务、FCM 唤醒、`SYSTEM_ALERT_WINDOW`（已实测）都不能绕过；
-   只有调用方可见（GBox/克隆在前台）时才能成功。
+   前台服务、FCM 唤醒、`SYSTEM_ALERT_WINDOW`（已实测）都不能绕过。
+   **改用无障碍点击桌面图标**：
+   `ui_dump` 找到 `美团` 的 bounds，再 `ui_click {"text":"美团"}`，
+   由 launcher 自己启动应用，不受该拦截影响。
    `start_app` 返回 `{"ok":true}` 只代表 `startActivity` 没抛异常，不代表界面真的起来了。
-9. **手机 agent 本地启动应用不要走桥**：GBox 克隆的调用方是 `com.gbox.android`
-   （uid 10193），后台必被拦截；让 agent 用自己的系统/UI 能力打开应用，
-   桥只负责文件、exec、http 等不需要 Activity 的操作。
+9. **手机 agent 的 UI 操作走 `ui_*` 工具**：本地 agent 不需要 FCM；
+   打开应用用 `ui_click` 点桌面图标，点击/滑动用 `ui_tap` / `ui_swipe`，
+   看界面用 `ui_dump` / `shot`。前提是无障碍服务已开启（见第 3 节）。

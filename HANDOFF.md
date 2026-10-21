@@ -1,10 +1,10 @@
 # StepBridge Handoff
 
-更新时间：2026-10-21 16:45
+更新时间：2026-10-21 17:40
 
 ## 当前状态
 
-- 当前分支：`codex/current-changes`
+- 当前分支：`codex/accessibility-ui`
 - 远程仓库：`https://github.com/amazingzxc/amoobridge.git`
 - 应用包名：`com.stepx.amoobridge`
 - Android 模块：`app/`
@@ -12,7 +12,40 @@
 - Debug APK：`app/build/outputs/apk/debug/app-debug.apk`
 - 测试机：StepX PZ261A，Android 16（SDK 36），StepOS，GBox 1.8.4.02
 
-本轮代码改动尚未提交。
+FCM/诊断部分已提交到 `codex/current-changes`（8f0c792），
+无障碍 UI 部分在 `codex/accessibility-ui` 分支继续。
+
+## 本地 agent + 无障碍（2026-10-21 已验证，主方案）
+
+原生应用现在带 `BridgeAccessibilityService`。开启无障碍后：
+
+- 系统长期绑定该服务，**StepOS 不再冻结原生 uid**：
+  实测退后台 3 分钟，8896 仍返回 200，`status.json` 持续更新；
+- 新增 UI 工具（HTTP `/call` 或文件信箱都可用）：
+  - `ui_dump`：写 `/sdcard/bridge-amoobridge/ui_dump.json`
+  - `ui_click {"text":"外卖"}`：按文本点击
+  - `ui_tap {"x":540,"y":1200}`
+  - `ui_swipe {"x1":600,"y1":1700,"x2":600,"y2":700,"duration":400}`
+  - `shot`：截图到 `shot_<ts>.png`
+  - `ui_back` / `ui_home` / `ui_recents`
+- 实测（美团）：
+  - `ui_click 外卖` → `TakeoutActivity`
+  - `ui_tap` 搜索框 → `GlobalSearchActivity`
+  - `ui_swipe` 正常
+  - `shot` 生成约 100KB 的截图
+  - `ui_click 美团`（桌面图标）可拉起/恢复美团
+- 结论：**本地 agent 不需要 FCM / GBox / VPN**，直接用原生 + 无障碍。
+
+开启无障碍：
+
+```bash
+adb shell settings put secure enabled_accessibility_services \
+  com.stepx.amoobridge/com.stepx.amoobridge.BridgeAccessibilityService
+adb shell settings put secure accessibility_enabled 1
+```
+
+`start_app` / `open_url` 在后台仍会被 StepOS 拦截；
+让 agent 用 `ui_click` 点桌面图标来打开应用。
 
 ## FCM 现状（2026-10-21 已验证可用）
 
@@ -79,33 +112,24 @@ POST https://fcm.googleapis.com/v1/projects/amoo-bridge/messages:send
 
 服务账号 JSON 不要提交到仓库，用完可删除/吊销。
 
-## 运行方式（重要）
+## 运行方式（2026-10-21 更新）
 
-这台手机上同时存在两份 StepBridge：
+本地 agent 用**原生应用 + 无障碍**，不需要 FCM：
 
-- **原生应用**：`com.stepx.amoobridge`，用 24.1.2 构建，无法收 FCM
-  （原生 GMS 被 Android 16 后台限制挡住），但可以正常跑 HTTP；
-- **GBox 克隆**：同一个包名，运行在 GBox 容器（uid 10193），
-  用 19.0.0 构建，**能收 FCM**。
+1. 保持原生应用启用；
+2. 开启无障碍（命令见上一节，或点应用里的按钮②）；
+3. agent 直接调 `http://127.0.0.1:8896/call` 的 `ui_*` 工具；
+4. 打开应用优先用 `ui_click` 点桌面图标，不要依赖 `start_app`。
 
-两者共用 `/sdcard/bridge-amoobridge` 和 8896 端口，不能同时跑。
+远程 FCM 仍可用 GBox 克隆（19.0.0），但它和原生不能同时跑：
 
-推荐流程：
+- 用 GBox 前：`adb shell pm disable-user --user 0 com.stepx.amoobridge`
+- 测完切回原生：`adb shell pm enable com.stepx.amoobridge`，
+  再 `am start -n com.stepx.amoobridge/.MainActivity`
+- **不要删除 GBox 里的克隆和 `/sdcard/Download/amoobridge-fcm19.apk`**，
+  远程 FCM 还需要它们。
 
-1. 手机开 VPN，确认能打开 google.com。
-2. 开机后打开一次 **GBox**，并保持它在后台（GBox 设置里可参考“后台保活”）。
-3. **停用原生 StepBridge**，避免它开机自动启动并占用 8896：
-   - 已执行：`adb shell pm disable-user --user 0 com.stepx.amoobridge`
-   - 需要恢复时：`adb shell pm enable com.stepx.amoobridge`
-   - 停用后 GBox 克隆仍能独立冷启动并收 FCM（已实测），
-     所以不需要卸载原生应用；停用比卸载更安全，也便于以后重新克隆。
-4. 需要远程唤醒时发送 data-only 的 `bridge_wake`；
-   克隆会被拉起/解冻，8896 可用约 60 秒。
-5. 需要持续可用时，手动启动 GBox 里的克隆并保持前台/最近任务。
-
-**不要删除 GBox 里的克隆。** 如果克隆被删掉，重新克隆前必须先把
-`/sdcard/Download/amoobridge-fcm19.apk` 装到手机上，否则克隆会使用 24.1.2 构建，
-FCM 又会回到 `SERVICE_NOT_AVAILABLE`。
+GBox 的 recents 锁已实测**不能阻止 StepOS 冻结**，GBox 保活只能靠 FCM 反复唤醒。
 
 ## 原生 GMS 的问题（保留记录）
 
@@ -116,6 +140,18 @@ FCM 又会回到 `SERVICE_NOT_AVAILABLE`。
   `BackgroundServiceStartNotAllowedException`（CHIMERA_LOG）。
   侧载 GMS 是普通用户应用，无法豁免；要原生 FCM 必须把 GMS 做成系统应用。
 - 结论：原生应用在这台机器上收不了 FCM，GBox 克隆是唯一可行路径。
+
+## Amoo（com.stepos.ailauncher）调查结论
+
+- 包名 `com.stepos.ailauncher`，label **Amoo**，系统应用；
+- 拥有 `SCREEN_OPS`、`ACCESS_MCP_SERVICES`、`SYSTEM_ALERT_WINDOW`、
+  `WRITE_SECURE_SETTINGS`、`MANAGE_ACTIVITY_TASKS`、`ACCESS_SURFACE_FLINGER`；
+- 但它绑定的 `IScreenOpsService` 只有：
+  `getEditContent` / `setEditContent` / `setEditContentBatch`（只读写输入框）；
+- 它的 `ScreenMCPService` 只有截图/录屏工具；
+- **没有** `INJECT_EVENTS`、没有 AccessibilityService、没有 `dispatchGesture`；
+- 因此无法通过配置让 Amoo 直接模拟点击，必须由本桥的
+  `BridgeAccessibilityService` 提供 UI 能力。
 
 ## 本轮代码改动
 
@@ -155,15 +191,14 @@ adb shell appops set com.stepx.amoobridge MANAGE_EXTERNAL_STORAGE allow
 
 或点应用里的「① 授予所有文件访问」。
 
-## 后台冻结（仍存在）
+## 后台冻结（分运行时）
 
-- StepOS 会在应用退到后台约 3–5 秒后冻结整个 uid；
-- 前台服务、电池优化白名单、JobScheduler、AlarmManager、临时 allowlist
-  都不能阻止；
-- 实测“服务自绑定”和“通知使用权”也无效，已从代码中移除；
-- 原生应用的 8896 只有前台可靠；
-- GBox 克隆被冻结后，FCM 消息可以重新拉起/解冻它（已验证），
-  所以远程唤醒路径可用，但每次唤醒后的可用窗口有限。
+- **原生 + 无障碍（uid 10202）**：无障碍服务被系统长期绑定，
+  实测退后台 3 分钟不冻结，8896 持续可用；这是当前主方案。
+- **GBox 克隆（uid 10193）**：仍然 3–5 秒后被冻结；
+  前台服务、WakeLock、Alarm、Job、recents 锁都无效；
+  FCM 消息可以重新拉起/解冻，适合远程按需唤醒。
+- 早期试过的“服务自绑定”“通知使用权”对原生无效，已从代码中移除。
 
 ## start_app / open_url 的后台限制（2026-10-21 确认）
 
