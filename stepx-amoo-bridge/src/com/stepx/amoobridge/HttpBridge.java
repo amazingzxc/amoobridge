@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,10 +22,16 @@ public class HttpBridge {
     private static volatile boolean running = false;
     private static volatile String token = "";
     private static ServerSocket server;
+    private static volatile long lastAcceptAt;
 
     public static int port() { return port; }
 
     public static boolean isRunning() { return running && server != null && port > 0; }
+
+    /** Recreate the listener if a vendor restart or a transient socket failure removed it. */
+    public static synchronized void ensureRunning() {
+        if (!isRunning()) start(DEFAULT_PORT);
+    }
 
     public static String tokenFile() { return BridgeService.BRIDGE_DIR + "/token.txt"; }
 
@@ -64,17 +71,32 @@ public class HttpBridge {
         new Thread(new Runnable() {
             public void run() {
                 try {
+                    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_FOREGROUND);
                     server = new ServerSocket(wantPort);
+                    server.setReuseAddress(true);
+                    server.setSoTimeout(5000);
                     port = wantPort;
                     while (running) {
-                        final Socket s = server.accept();
-                        new Thread(new Runnable() {
-                            public void run() { handle(s); }
-                        }).start();
+                        try {
+                            final Socket s = server.accept();
+                            lastAcceptAt = System.currentTimeMillis();
+                            Thread t = new Thread(new Runnable() {
+                                public void run() {
+                                    try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_FOREGROUND); }
+                                    catch (Throwable ignored) {}
+                                    handle(s);
+                                }
+                            }, "http-client");
+                            t.start();
+                        } catch (SocketTimeoutException ignored) {
+                            // Periodically wake the accept loop so stop/restart is responsive.
+                        }
                     }
                 } catch (Throwable t) {
                     running = false;
                     port = 0;
+                    try { if (server != null) server.close(); } catch (Throwable ignored) {}
+                    server = null;
                 }
             }
         }, "http-bridge").start();
@@ -89,6 +111,7 @@ public class HttpBridge {
 
     private static void handle(Socket s) {
         try {
+            s.setSoTimeout(15000);
             BufferedInputStream in = new BufferedInputStream(s.getInputStream());
             OutputStream out = s.getOutputStream();
             String reqLine = readLine(in);

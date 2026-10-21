@@ -23,12 +23,15 @@ import java.util.Arrays;
 public class BridgeService extends Service {
     public static final String BRIDGE_DIR = "/sdcard/bridge-amoobridge";
     private volatile boolean running = false;
+    private volatile boolean destroyed = false;
     private Thread worker;
+    private Thread httpWatchdog;
     private PowerManager.WakeLock wakeLock;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        destroyed = false;
         Tools.init(this);
         promoteToForeground();
         try {
@@ -40,6 +43,23 @@ public class BridgeService extends Service {
         WatchdogReceiver.schedule(this);
         BridgeJobService.schedule(this);
         HttpBridge.start(HttpBridge.DEFAULT_PORT);
+        httpWatchdog = new Thread(new Runnable() {
+            public void run() {
+                try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_FOREGROUND); }
+                catch (Throwable ignored) {}
+                while (!destroyed) {
+                    try {
+                        HttpBridge.ensureRunning();
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        return;
+                    } catch (Throwable ignored) {
+                        try { Thread.sleep(1000); } catch (InterruptedException e) { return; }
+                    }
+                }
+            }
+        }, "http-watchdog");
+        httpWatchdog.start();
     }
 
     @Override
@@ -60,7 +80,9 @@ public class BridgeService extends Service {
 
     @Override
     public void onDestroy() {
+        destroyed = true;
         running = false;
+        if (httpWatchdog != null) httpWatchdog.interrupt();
         HttpBridge.stop();
         try {
             if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
