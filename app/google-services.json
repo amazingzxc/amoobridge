@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "816279290204",
+    "project_id": "amoo-bridge",
+    "storage_bucket": "amoo-bridge.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:816279290204:android:2f2ecebb87be1651170199",
+        "android_client_info": {
+          "package_name": "com.stepx.amoobridge"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASoTw_YR2MGFp8o3BmgRQX5Ux-A0rZlEg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
