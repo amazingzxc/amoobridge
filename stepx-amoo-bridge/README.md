@@ -33,6 +33,27 @@ Body:   {"tool":"exec","args":{"cmd":"ls /sdcard"}}
 `/sdcard/bridge/cmd_<id>.json` 进，`result_<id>.json` 出，命令文件处理完自动删。
 服务没起来时命令会排队，下次醒来照样执行。
 
+## 远程唤醒（FCM）
+
+项目已包含 `BridgeFirebaseMessagingService`。服务收到数据消息
+`type=bridge_wake` 后，会启动桥服务并保持 HTTP 端口约 60 秒，窗口结束后自动停止临时服务。普通手动启动仍保持常驻。
+
+要启用真实 FCM，需要创建 Firebase 项目并将匹配包名 `com.stepx.amoobridge` 的 `google-services.json` 放到 `app/`，再按 Firebase Android 文档启用 Google Services Gradle 插件并重新编译。仓库不包含任何 Firebase 密钥，未配置该文件时 APK 仍可编译，但不会收到真实 FCM 消息。
+
+唤醒消息应使用高优先级 data payload，例如：
+
+```json
+{
+  "message": {
+    "token": "<设备 FCM token>",
+    "android": { "priority": "high" },
+    "data": { "type": "bridge_wake" }
+  }
+}
+```
+
+设备生成的 token 会写入 `/sdcard/bridge-amoobridge/fcm_token.txt`。
+
 ## 命令行入口
 
 VM 里有 `bridge` 命令，HTTP 优先、信箱兜底，自动切换：
