@@ -401,7 +401,7 @@ public class Tools {
         return true;
     }
 
-    /** Minimal HTTPS probe used to diagnose GBox/network problems from inside the app. */
+    /** Minimal HTTPS probe used to diagnose network problems from inside the app. */
     private static JSONObject http(JSONObject a) {
         JSONObject r = new JSONObject();
         String url = a.optString("url", "");

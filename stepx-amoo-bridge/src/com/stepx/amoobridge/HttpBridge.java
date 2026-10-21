@@ -149,17 +149,6 @@ public class HttpBridge {
             } else if (path.startsWith("/status")) {
                 resp.put("ok", true).put("up", running).put("port", port).put("mode", "lite")
                     .put("tools", Tools.NAMES.length);
-                try {
-                    File fcm = new File(BridgeService.BRIDGE_DIR, "fcm_status.json");
-                    if (fcm.exists()) resp.put("fcm", new JSONObject(readSmall(fcm)));
-                } catch (Throwable ignored) {}
-            } else if (path.startsWith("/fcm")) {
-                File token = new File(BridgeService.BRIDGE_DIR, "fcm_token.txt");
-                File status = new File(BridgeService.BRIDGE_DIR, "fcm_status.json");
-                resp.put("ok", true).put("has_token", token.exists() && token.length() > 0);
-                if (status.exists()) {
-                    try { resp.put("status", new JSONObject(readSmall(status))); } catch (Throwable ignored) {}
-                }
             } else if (path.startsWith("/call")) {
                 JSONObject req = new JSONObject(body.length() == 0 ? "{}" : body);
                 String tool = req.optString("tool", "");
@@ -182,24 +171,6 @@ public class HttpBridge {
             s.close();
         } catch (Throwable t) {
             try { s.close(); } catch (Throwable ignored) {}
-        }
-    }
-
-    private static String readSmall(File f) {
-        try {
-            int len = (int) Math.min(f.length(), 8192);
-            byte[] b = new byte[len];
-            java.io.FileInputStream in = new java.io.FileInputStream(f);
-            int off = 0;
-            while (off < len) {
-                int n = in.read(b, off, len - off);
-                if (n <= 0) break;
-                off += n;
-            }
-            in.close();
-            return new String(b, 0, off, "UTF-8");
-        } catch (Throwable t) {
-            return "{}";
         }
     }
 

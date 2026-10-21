@@ -8,8 +8,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.PowerManager;
 import android.content.pm.ServiceInfo;
 
@@ -29,22 +27,12 @@ public class BridgeService extends Service {
     private Thread worker;
     private Thread httpWatchdog;
     private PowerManager.WakeLock wakeLock;
-    private boolean temporaryWake = false;
-    private final Handler stopHandler = new Handler(Looper.getMainLooper());
-    private final Runnable stopTemporary = new Runnable() {
-        public void run() {
-            if (temporaryWake) stopSelf();
-        }
-    };
-    public static final String EXTRA_WAKE_WINDOW = "com.stepx.amoobridge.WAKE_WINDOW";
-    public static final long WAKE_WINDOW_MS = 60 * 1000L;
 
     @Override
     public void onCreate() {
         super.onCreate();
         destroyed = false;
         Tools.init(this);
-        BridgeFcm.start(this);
         promoteToForeground();
         try {
             PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
@@ -80,27 +68,20 @@ public class BridgeService extends Service {
         // Re-assert the foreground state and repair a listener that died independently.
         promoteToForeground();
         if (!HttpBridge.isRunning()) HttpBridge.start(HttpBridge.DEFAULT_PORT);
-        boolean wakeRequested = intent != null && intent.getBooleanExtra(EXTRA_WAKE_WINDOW, false);
         if (!running) {
-            temporaryWake = wakeRequested;
             running = true;
             worker = new Thread(new Runnable() {
                 public void run() { loop(); }
             }, "bridge-worker");
             worker.start();
-            if (temporaryWake) {
-                stopHandler.removeCallbacks(stopTemporary);
-                stopHandler.postDelayed(stopTemporary, WAKE_WINDOW_MS);
-            }
         }
-        return temporaryWake ? START_NOT_STICKY : START_STICKY;
+        return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
         destroyed = true;
         running = false;
-        stopHandler.removeCallbacks(stopTemporary);
         if (httpWatchdog != null) httpWatchdog.interrupt();
         HttpBridge.stop();
         try {
