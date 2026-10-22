@@ -8,6 +8,16 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.SystemClock;
 
+/**
+ * Slow backstop: re-start the bridge service about once a minute.
+ *
+ * <p>{@code SCHEDULE_EXACT_ALARM} is not granted to a targetSdk 34 sideload on
+ * this device (appop default), so the previous code fell through to
+ * {@code setInexactRepeating}, which the platform batches into multi-minute
+ * windows and which in practice almost never fired. This version re-arms a
+ * single {@code setAndAllowWhileIdle} alarm instead, which is allowed without
+ * the exact-alarm permission.
+ */
 public class WatchdogReceiver extends BroadcastReceiver {
     public static final int INTERVAL_MS = 60000;
 
@@ -22,29 +32,26 @@ public class WatchdogReceiver extends BroadcastReceiver {
             }
         } catch (Throwable ignored) {
         }
+        KeepHot.init(ctx);
         schedule(ctx);
     }
 
     public static void schedule(Context ctx) {
         try {
             AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+            if (am == null) return;
             Intent i = new Intent(ctx, WatchdogReceiver.class);
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
             if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
             PendingIntent pi = PendingIntent.getBroadcast(ctx, 1001, i, flags);
             long at = SystemClock.elapsedRealtime() + INTERVAL_MS;
-            if (Build.VERSION.SDK_INT >= 23) {
-                try {
-                    if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()) {
-                        am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
-                        return;
-                    }
-                } catch (Throwable ignored) {
-                    // Fall through to the compatible inexact alarm below.
-                }
+            if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
+                am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
+            } else if (Build.VERSION.SDK_INT >= 23) {
+                am.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
+            } else {
+                am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
             }
-            am.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    at, INTERVAL_MS, pi);
         } catch (Throwable ignored) {
         }
     }

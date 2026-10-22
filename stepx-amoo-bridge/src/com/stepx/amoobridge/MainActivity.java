@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
         TextView help = new TextView(this);
         help.setTextSize(12);
         help.setTextColor(0xFF8B93A7);
-        help.setText("\n两条通道：\n1) 文件信箱 /sdcard/bridge-amoobridge  →  cmd_<id>.json 进，result_<id>.json 出\n2) 本机 HTTP  http://127.0.0.1:8896/call  →  {\\\"tool\\\":\\\"exec\\\",\\\"args\\\":{...}}\n   令牌在 /sdcard/bridge-amoobridge/token.txt，请求带 Authorization: Bearer <令牌>\n\n工具：exec ls read write mkdir rm mv cp stat start_app open_url share_text\nclipboard toast notify list_apps battery volume brightness vibrate http\nui_tap ui_swipe ui_click ui_dump shot ui_back ui_home ui_recents\n\nUI 工具需要开启无障碍服务（按钮②）");
+        help.setText("\n两条通道：\n1) 文件信箱 /sdcard/bridge-amoobridge  →  cmd_<id>.json 进，result_<id>.json 出\n2) 本机 HTTP  http://127.0.0.1:8896/call  →  {\\\"tool\\\":\\\"exec\\\",\\\"args\\\":{...}}\n   令牌在 /sdcard/bridge-amoobridge/token.txt，请求带 Authorization: Bearer <令牌>\n\n工具：exec ls read write mkdir rm mv cp stat start_app open_url share_text\nclipboard toast notify list_apps battery volume brightness vibrate http\nui_tap ui_swipe ui_click ui_dump shot ui_back ui_home ui_recents\nui_windows pip_target（PiP 目标窗口）\n\nUI 工具需要开启无障碍服务（按钮②）");
         root.addView(help);
 
         ScrollView sc = new ScrollView(this);

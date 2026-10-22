@@ -34,6 +34,7 @@ public class BridgeService extends Service {
         destroyed = false;
         Tools.init(this);
         promoteToForeground();
+        KeepHot.init(this);
         try {
             PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getPackageName() + ":bridge");
@@ -100,9 +101,16 @@ public class BridgeService extends Service {
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
+    private Notification notification;
+
     private void promoteToForeground() {
         try {
-            Notification notification = buildNotification("桥已启动", "HTTP 与信箱就绪");
+            // Reuse one Notification instance: the keeper re-enters onStartCommand
+            // every couple of seconds while the bridge is hot, and rebuilding the
+            // notification each time would churn the notification shade.
+            if (notification == null) {
+                notification = buildNotification("桥已启动", "HTTP 与信箱就绪");
+            }
             if (Build.VERSION.SDK_INT >= 29) {
                 startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
             } else {
@@ -110,7 +118,12 @@ public class BridgeService extends Service {
             }
         } catch (Throwable ignored) {
             // Keep the service alive on older/vendor frameworks that reject the typed call.
-            try { startForeground(1, buildNotification("桥已启动", "HTTP 与信箱就绪")); } catch (Throwable ignoredAgain) {}
+            try {
+                if (notification == null) {
+                    notification = buildNotification("桥已启动", "HTTP 与信箱就绪");
+                }
+                startForeground(1, notification);
+            } catch (Throwable ignoredAgain) {}
         }
     }
 
@@ -182,6 +195,9 @@ public class BridgeService extends Service {
             try {
                 o.put("ver", getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
             } catch (Throwable ignored) {}
+            try {
+                KeepHot.fillStatus(o);
+            } catch (Throwable ignored) {}
             JSONArray a = new JSONArray();
             for (String t : Tools.NAMES) a.put(t);
             o.put("tools", a);
@@ -192,6 +208,7 @@ public class BridgeService extends Service {
     private void handle(File f) {
         String id = null;
         JSONObject result = new JSONObject();
+        KeepHot.touch();
         try {
             String text = readText(f, 1024 * 512);
             JSONObject cmd = new JSONObject(text);

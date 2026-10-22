@@ -145,17 +145,32 @@ public class HttpBridge {
                 resp.put("ok", false).put("error", "unauthorized");
                 code = 401;
             } else if (path.startsWith("/ping")) {
+                KeepHot.touch();
                 resp.put("ok", true).put("pong", System.currentTimeMillis());
+                try {
+                    KeepHot.fillStatus(resp);
+                } catch (Throwable ignored) {
+                }
             } else if (path.startsWith("/status")) {
+                KeepHot.touch();
                 resp.put("ok", true).put("up", running).put("port", port).put("mode", "lite")
                     .put("tools", Tools.NAMES.length);
+                try {
+                    KeepHot.fillStatus(resp);
+                } catch (Throwable ignored) {
+                }
             } else if (path.startsWith("/call")) {
+                KeepHot.touch();
                 JSONObject req = new JSONObject(body.length() == 0 ? "{}" : body);
                 String tool = req.optString("tool", "");
                 JSONObject args = req.optJSONObject("args");
                 if (args == null) args = new JSONObject();
                 resp = Tools.dispatch(tool, args);
                 resp.put("tool", tool);
+                try {
+                    KeepHot.fillStatus(resp);
+                } catch (Throwable ignored) {
+                }
             } else {
                 resp.put("ok", false).put("error", "not found");
                 code = 404;

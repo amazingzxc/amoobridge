@@ -42,7 +42,8 @@ public class Tools {
         "ping", "info", "exec", "ls", "read", "write", "mkdir", "rm", "mv", "cp", "stat",
         "start_app", "open_url", "share_text", "clipboard", "toast", "notify", "list_apps",
         "battery", "volume", "brightness", "vibrate", "http",
-        "ui_tap", "ui_swipe", "ui_click", "ui_dump", "shot", "ui_back", "ui_home", "ui_recents"
+        "ui_tap", "ui_swipe", "ui_click", "ui_dump", "shot", "ui_back", "ui_home", "ui_recents",
+        "ui_windows", "pip_target", "open_small_window", "start_small_window", "keep_hot"
     };
 
     public static JSONObject dispatch(String tool, JSONObject a) {
@@ -67,7 +68,12 @@ public class Tools {
             if (tool.equals("ui_swipe")) return UiTools.swipe(a);
             if (tool.equals("ui_click")) return UiTools.click(a);
             if (tool.equals("ui_dump")) return UiTools.dump(a);
+            if (tool.equals("ui_windows")) return UiTools.windows(a);
+            if (tool.equals("pip_target")) return UiTools.pipTarget(a);
+            if (tool.equals("open_small_window")) return UiTools.openSmallWindow(a);
+            if (tool.equals("start_small_window")) return UiTools.startSmallWindow(a);
             if (tool.equals("shot")) return UiTools.shot(a);
+            if (tool.equals("keep_hot")) return KeepHot.tool(a);
             if (tool.equals("ui_back") || tool.equals("ui_home")
                     || tool.equals("ui_recents")) {
                 JSONObject action = new JSONObject();
